@@ -219,19 +219,26 @@ async def process_answer(data, player_id: str, game_id: str):
     game = game_state.get_game(game_id)
     if not game or not game["current_question"]:
         return
-    
+
+    # Prevent processing if the round is already finished
+    if game.get("round_finished", False):
+        return
+
     # Verify answer
     if data["answer"].lower() == game["current_question"]["answer"].lower():
+        # Mark round as finished
+        game["round_finished"] = True
+        
         # Correct answer - increment score
         game["players"][player_id]["score"] += 1
-        
+
         # Send result to the player who answered
         await game["players"][player_id]["websocket"].send_json({
             "type": "answer_result",
             "correct": True,
             "message": "Correct answer!"
         })
-        
+
         # Notify opponent
         opponent_id = game_state.get_opponent(game_id, player_id)
         if opponent_id:
@@ -240,20 +247,30 @@ async def process_answer(data, player_id: str, game_id: str):
                 "correct": True,
                 "message": "Your opponent answered correctly!"
             })
-        
-        # Send updated scores
+
+        # Send updated scores to both players
         scores = {pid: pdata["score"] for pid, pdata in game["players"].items()}
         for p_data in game["players"].values():
             await p_data["websocket"].send_json({
                 "type": "score_update",
                 "scores": scores
             })
-        
-        # Start next round after a brief delay
-        await asyncio.sleep(2)
+
+        # Notify both players that the round is over
+        for p_data in game["players"].values():
+            await p_data["websocket"].send_json({
+                "type": "round_over",
+                "message": "Round complete! Get ready for the next question."
+            })
+
+        # Delay before starting next round so clients can display the results
+        await asyncio.sleep(3)
+
+        # Reset round_finished flag and start new round
+        game["round_finished"] = False
         await start_new_round(game_id)
     else:
-        # Incorrect answer
+        # Incorrect answer; only send feedback to the player who answered
         await game["players"][player_id]["websocket"].send_json({
             "type": "answer_result",
             "correct": False,

@@ -2,6 +2,7 @@ import asyncio
 import json
 import websockets
 import sys
+from typing import Dict
 
 async def connect_to_game():
     """Simple WebSocket client for testing the game server"""
@@ -10,21 +11,24 @@ async def connect_to_game():
     async with websockets.connect(uri) as websocket:
         print("Connected to game server")
         
+        context = {"game_id": None, "player_id": None}
+        
         # Handle incoming messages
-        receive_task = asyncio.create_task(receive_messages(websocket))
+        receive_task = asyncio.create_task(receive_messages(websocket, context))
         
         # Handle user inputs
-        send_task = asyncio.create_task(send_messages(websocket))
+        send_task = asyncio.create_task(send_messages(websocket, context))
         
         # Wait until one of the tasks completes
         await asyncio.gather(receive_task, send_task)
 
-async def receive_messages(websocket):
+async def receive_messages(websocket, context: Dict):
     """Handle incoming messages from the server"""
     try:
         while True:
             message = await websocket.recv()
             data = json.loads(message)
+            print(data)
             
             # Process different message types
             if data["type"] == "waiting":
@@ -34,6 +38,8 @@ async def receive_messages(websocket):
                 print(f"Game started! You are {data['message']}")
                 print(f"Your player ID: {data['player_id']}")
                 print(f"Game ID: {data['game_id']}")
+                context["player_id"] = data["player_id"]
+                context["game_id"] = data["game_id"]
             
             elif data["type"] == "question":
                 print(f"\nRound {data['round']}")
@@ -41,6 +47,7 @@ async def receive_messages(websocket):
                 print("Type your answer...")
             
             elif data["type"] == "answer_result":
+                print('here')
                 if data["correct"]:
                     print(f"Correct! {data['message']}")
                 else:
@@ -70,11 +77,8 @@ async def receive_messages(websocket):
     except Exception as e:
         print(f"Error: {e}")
 
-async def send_messages(websocket):
+async def send_messages(websocket, context: Dict):
     """Handle user input and send messages to the server"""
-    game_id = None
-    player_id = None
-    
     try:
         while True:
             # Wait for user input
@@ -82,9 +86,11 @@ async def send_messages(websocket):
                 None, lambda: sys.stdin.readline().strip()
             )
             
+            game_id = context["game_id"]
+            player_id = context["player_id"]
+            
             # Send message based on context
             if game_id and player_id and message:
-                # Send as answer
                 await websocket.send(json.dumps({
                     "type": "answer",
                     "game_id": game_id,

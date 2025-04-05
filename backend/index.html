@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>WebSocket Test Client</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    #messages { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: scroll; }
+    input[type="text"] { width: 80%; padding: 8px; }
+    button { padding: 8px; }
+  </style>
+</head>
+<body>
+  <h1>WebSocket Test Client</h1>
+  <div id="messages"></div>
+  <br>
+  <input type="text" id="messageInput" placeholder="Type your answer here..." />
+  <button onclick="sendMessage()">Send</button>
+  
+  <script>
+    // Connect to your WebSocket server
+    const ws = new WebSocket("ws://localhost:8000/ws/game");
+    const messagesDiv = document.getElementById("messages");
+    
+    ws.onopen = function() {
+      addMessage("Connected to WebSocket server.");
+    };
+    
+    ws.onmessage = function(event) {
+      // Try parsing the JSON from the server
+      try {
+        const data = JSON.parse(event.data);
+        addMessage("Received: " + JSON.stringify(data));
+      } catch (error) {
+        addMessage("Received non-JSON message: " + event.data);
+      }
+    };
+    
+    ws.onerror = function(error) {
+      addMessage("WebSocket error: " + error);
+    };
+    
+    ws.onclose = function() {
+      addMessage("WebSocket connection closed.");
+    };
+    
+    function sendMessage() {
+      const input = document.getElementById("messageInput");
+      const message = input.value;
+      if (message) {
+        // Build a JSON message that the server expects
+        const jsonMessage = JSON.stringify({
+          type: "answer",
+          answer: message
+        });
+        ws.send(jsonMessage);
+        addMessage("Sent: " + jsonMessage);
+        input.value = "";
+      }
+    }
+    
+    function addMessage(message) {
+      const msgEl = document.createElement("p");
+      msgEl.textContent = message;
+      messagesDiv.appendChild(msgEl);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+  </script>
+</body>
+</html>
