@@ -2,132 +2,136 @@ import random
 from typing import Dict, List, Optional
 import json
 import os
+from pymongo.mongo_client import MongoClient
+from pymongo.server_api import ServerApi
 
 class QuestionService:
-    def __init__(self, questions_file: Optional[str] = None):
+    def __init__(self, connection_string: Optional[str] = None):
         """
-        Initialize the question service.
+        Initialize the question service with MongoDB connection.
         
         Args:
-            questions_file: Path to a JSON file containing questions. 
-                           If None, uses built-in sample questions.
+            connection_string: MongoDB connection string. If None, uses environment variable or default.
         """
-        self.questions = []
+        # Use provided connection string, environment variable, or default
+        self.connection_string = connection_string or os.environ.get(
+            "MONGODB_URI", 
+            "mongodb+srv://colinschilf2025:SuA1Cw1uBUOMCcZq@rankedfintech.veidnzl.mongodb.net/?appName=RankedFintech"
+        )
         
-        if questions_file and os.path.exists(questions_file):
-            self.load_questions_from_file(questions_file)
-        else:
-            self.load_sample_questions()
+        # Connect to MongoDB
+        self.client = MongoClient(self.connection_string, server_api=ServerApi('1'))
+        self.db = self.client["rankedfintech"]
+        self.questions_collection = self.db["problems"]
+        
+        # Check if we have questions in the database, load samples if empty
+        if self.count() == 0:
+            print("No questions found in database. Loading sample questions...")
+            self._load_sample_questions()
     
-    def load_questions_from_file(self, file_path: str) -> None:
-        """Load questions from a JSON file"""
-        try:
-            with open(file_path, 'r') as f:
-                data = json.load(f)
-                
-            # Validate the loaded questions
-            for q in data:
-                if isinstance(q, dict) and 'question' in q and 'answer' in q:
-                    if 'id' not in q:
-                        q['id'] = len(self.questions) + 1
-                    self.questions.append(q)
-                    
-            print(f"Loaded {len(self.questions)} questions from {file_path}")
-        except Exception as e:
-            print(f"Error loading questions from file: {e}")
-            # Fallback to sample questions
-            self.load_sample_questions()
-    
-    def load_sample_questions(self) -> None:
-        """Load built-in sample questions"""
-        self.questions = [
+    def _load_sample_questions(self) -> None:
+        """Load built-in sample questions into the database if it's empty"""
+        sample_questions = [
             {
-                "id": 1,
                 "question": "What is 2 + 2?",
-                "answer": "4"
+                "answer": "4",
+                "time": 10
             },
             {
-                "id": 2,
                 "question": "What is the capital of France?",
-                "answer": "Paris"
+                "answer": "Paris",
+                "time": 15
             },
             {
-                "id": 3,
                 "question": "How many planets are in our solar system?",
-                "answer": "8"
+                "answer": "8",
+                "time": 15
             },
             {
-                "id": 4,
                 "question": "What is 7 * 8?",
-                "answer": "56"
+                "answer": "56",
+                "time": 10
             },
             {
-                "id": 5,
                 "question": "What is the largest ocean on Earth?",
-                "answer": "Pacific"
+                "answer": "Pacific",
+                "time": 15
             },
             {
-                "id": 6,
                 "question": "What is the square root of 64?",
-                "answer": "8"
+                "answer": "8",
+                "time": 10
             },
             {
-                "id": 7,
                 "question": "What is the chemical symbol for gold?",
-                "answer": "Au"
+                "answer": "Au",
+                "time": 15
             },
             {
-                "id": 8, 
                 "question": "What is the first element on the periodic table?",
-                "answer": "Hydrogen"
+                "answer": "Hydrogen",
+                "time": 15
             },
             {
-                "id": 9,
                 "question": "Who wrote 'Romeo and Juliet'?",
-                "answer": "Shakespeare"
+                "answer": "Shakespeare",
+                "time": 15
             },
             {
-                "id": 10,
                 "question": "What is the smallest prime number?",
-                "answer": "2"
+                "answer": "2",
+                "time": 10
             }
         ]
-        print(f"Loaded {len(self.questions)} sample questions")
+        
+        # Insert sample questions into the database
+        self.questions_collection.insert_many(sample_questions)
+        print(f"Loaded {len(sample_questions)} sample questions into the database")
     
     def get_random_question(self) -> Dict:
         """
         Get a random question from the database.
         
         Returns:
-            A copy of a random question dictionary
+            A random question dictionary
         """
-        if not self.questions:
-            return {"id": 0, "question": "No questions available", "answer": "None"}
+        # Use MongoDB's $sample aggregation to get a random document
+        random_question = list(self.questions_collection.aggregate([
+            {"$sample": {"size": 1}}
+        ]))
         
-        return random.choice(self.questions).copy()
+        if not random_question:
+            return {"_id": "0", "question": "No questions available", "answer": "None", "time": 10}
+        
+        return random_question[0]
     
-    def get_question_by_id(self, question_id: int) -> Optional[Dict]:
+    def get_question_by_id(self, question_id: str) -> Optional[Dict]:
         """
         Get a specific question by ID.
         
         Args:
-            question_id: The ID of the question to retrieve
+            question_id: The MongoDB ID of the question to retrieve
             
         Returns:
             The question dictionary or None if not found
         """
-        for question in self.questions:
-            if question["id"] == question_id:
-                return question.copy()
+        from bson.objectid import ObjectId
         
-        return None
+        try:
+            # Convert string ID to ObjectId
+            object_id = ObjectId(question_id)
+            question = self.questions_collection.find_one({"_id": object_id})
+            return question
+        except Exception as e:
+            print(f"Error retrieving question: {e}")
+            return None
     
-    def validate_answer(self, question_id: int, answer: str) -> bool:
+    def validate_answer(self, question_id: str, answer: str) -> bool:
         """
         Check if an answer is correct for a given question.
         
         Args:
-            question_id: The ID of the question
+            question_id: The MongoDB ID of the question
             answer: The answer to check
             
         Returns:
@@ -140,35 +144,42 @@ class QuestionService:
         # Simple string comparison (case insensitive)
         return answer.lower().strip() == question["answer"].lower().strip()
     
-    def add_question(self, question: str, answer: str) -> Dict:
+    def add_question(self, question: str, answer: str, time: int = 30) -> Dict:
         """
         Add a new question to the database.
         
         Args:
             question: The question text
             answer: The correct answer
+            time: Time limit in seconds (default 30)
             
         Returns:
-            The created question dictionary
+            The created question dictionary with MongoDB _id
         """
-        next_id = max([q["id"] for q in self.questions], default=0) + 1
         new_question = {
-            "id": next_id,
             "question": question,
-            "answer": answer
+            "answer": answer,
+            "time": time
         }
         
-        self.questions.append(new_question)
-        return new_question.copy()
+        result = self.questions_collection.insert_one(new_question)
+        # Get the inserted document with the _id field
+        inserted_question = self.questions_collection.find_one({"_id": result.inserted_id})
+        return inserted_question
     
-    def get_all_questions(self) -> List[Dict]:
+    def get_all_questions(self, limit: int = 100, skip: int = 0) -> List[Dict]:
         """
-        Get all questions.
+        Get all questions with pagination.
         
+        Args:
+            limit: Maximum number of questions to return
+            skip: Number of questions to skip (for pagination)
+            
         Returns:
-            A list of all question dictionaries
+            A list of question dictionaries
         """
-        return [q.copy() for q in self.questions]
+        cursor = self.questions_collection.find().limit(limit).skip(skip)
+        return list(cursor)
     
     def count(self) -> int:
         """
@@ -177,11 +188,30 @@ class QuestionService:
         Returns:
             The number of questions in the database
         """
-        return len(self.questions)
+        return self.questions_collection.count_documents({})
+    
+    def close(self):
+        """Close the MongoDB connection"""
+        if hasattr(self, 'client'):
+            self.client.close()
+    
+    def __del__(self):
+        """Destructor to ensure connection is closed"""
+        self.close()
 
 # Usage example
 if __name__ == "__main__":
     service = QuestionService()
+    
+    # Print the total count
+    print(f"Total questions in database: {service.count()}")
+    
+    # Get a random question
     question = service.get_random_question()
-    print(f"Random question: {question['question']}")
+    print(f"\nRandom question: {question['question']}")
     print(f"Answer: {question['answer']}")
+    print(f"Time limit: {question['time']} seconds")
+    print(f"MongoDB ID: {question['_id']}")
+    
+    # Clean up
+    service.close()
