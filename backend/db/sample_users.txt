@@ -1,0 +1,62 @@
+[
+  {
+    "username": "math_wizard",
+    "elo": 1850,
+    "email": "math_wizard@example.com",
+    "joined_date": "2024-01-15"
+  },
+  {
+    "username": "probability_king",
+    "elo": 1720,
+    "email": "probking@example.com",
+    "joined_date": "2024-02-03"
+  },
+  {
+    "username": "stats_master",
+    "elo": 1690,
+    "email": "statsmaster@example.com",
+    "joined_date": "2024-01-28"
+  },
+  {
+    "username": "equation_solver",
+    "elo": 1550,
+    "email": "eqsolver@example.com",
+    "joined_date": "2024-03-10"
+  },
+  {
+    "username": "number_theory",
+    "elo": 1925,
+    "email": "numbertheory@example.com",
+    "joined_date": "2023-12-05"
+  },
+  {
+    "username": "algebra_ace",
+    "elo": 1630,
+    "email": "algebraace@example.com",
+    "joined_date": "2024-02-19"
+  },
+  {
+    "username": "geometry_pro",
+    "elo": 1780,
+    "email": "geopro@example.com",
+    "joined_date": "2023-11-20"
+  },
+  {
+    "username": "calculus_expert",
+    "elo": 1890,
+    "email": "calcexpert@example.com",
+    "joined_date": "2024-01-05"
+  },
+  {
+    "username": "logic_master",
+    "elo": 1650,
+    "email": "logicmaster@example.com",
+    "joined_date": "2024-03-01"
+  },
+  {
+    "username": "fintech_rookie",
+    "elo": 1200,
+    "email": "rookie@example.com",
+    "joined_date": "2024-04-01"
+  }
+]
