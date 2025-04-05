@@ -9,7 +9,7 @@ async def connect_to_game():
     uri = "ws://localhost:8000/ws/game"
     
     async with websockets.connect(uri) as websocket:
-        print("Connected to game server")
+        print("Connected to WebSocket server.")
         
         context = {"game_id": None, "player_id": None}
         
@@ -28,14 +28,14 @@ async def receive_messages(websocket, context: Dict):
         while True:
             message = await websocket.recv()
             data = json.loads(message)
-            print(data)
+            print(f"Received: {message}")
             
             # Process different message types
             if data["type"] == "waiting":
                 print(f"Status: {data['message']}")
             
             elif data["type"] == "game_start":
-                print(f"Game started! You are {data['message']}")
+                print(f"Game started! {data['message']}")
                 print(f"Your player ID: {data['player_id']}")
                 print(f"Game ID: {data['game_id']}")
                 context["player_id"] = data["player_id"]
@@ -44,10 +44,10 @@ async def receive_messages(websocket, context: Dict):
             elif data["type"] == "question":
                 print(f"\nRound {data['round']}")
                 print(f"Question: {data['question']}")
+                print(f"Time limit: {data.get('time_limit', 30)} seconds")
                 print("Type your answer...")
             
             elif data["type"] == "answer_result":
-                print('here')
                 if data["correct"]:
                     print(f"Correct! {data['message']}")
                 else:
@@ -59,7 +59,11 @@ async def receive_messages(websocket, context: Dict):
             elif data["type"] == "score_update":
                 print("Scores:")
                 for player_id, score in data["scores"].items():
-                    print(f"- Player {player_id}: {score}")
+                    player_label = "You" if player_id == context["player_id"] else "Opponent"
+                    print(f"- {player_label}: {score}")
+            
+            elif data["type"] == "round_over":
+                print(f"Round complete: {data['message']}")
             
             elif data["type"] == "opponent_left":
                 print(f"Game ended: {data['message']}")
@@ -69,7 +73,8 @@ async def receive_messages(websocket, context: Dict):
                 print(f"Game over! {data['message']}")
                 print("Final Scores:")
                 for player_id, score in data["final_scores"].items():
-                    print(f"- Player {player_id}: {score}")
+                    player_label = "You" if player_id == context["player_id"] else "Opponent"
+                    print(f"- {player_label}: {score}")
                 return
     
     except websockets.exceptions.ConnectionClosed:
@@ -86,21 +91,21 @@ async def send_messages(websocket, context: Dict):
                 None, lambda: sys.stdin.readline().strip()
             )
             
-            game_id = context["game_id"]
-            player_id = context["player_id"]
-            
-            # Send message based on context
-            if game_id and player_id and message:
-                await websocket.send(json.dumps({
-                    "type": "answer",
-                    "game_id": game_id,
-                    "player_id": player_id,
-                    "answer": message
-                }))
-            
             # Special commands
             if message == "/quit":
+                print("Exiting...")
                 break
+            
+            # Only send answers if we're in a game
+            if context["game_id"] and context["player_id"] and message:
+                data = {
+                    "type": "answer",
+                    "game_id": context["game_id"],
+                    "player_id": context["player_id"],
+                    "answer": message
+                }
+                await websocket.send(json.dumps(data))
+                print(f"Sent: {json.dumps(data)}")
     
     except websockets.exceptions.ConnectionClosed:
         print("Connection to server closed")
